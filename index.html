@@ -597,7 +597,7 @@
             hiddifySettings: 'تنظیمات هیدیفای',
             singboxSettings: 'تنظیمات سینگ باکس',
             connectAndUse: 'اتصال و استفاده',
-            connectAndUseDesc: 'در برنامه هیدیفای روی دکمه CONNECT و در سینگ باکس روی ENABLE کلیک کنید. پیشنهاد می شود روزانه لینک اشتراک خود را از داخل اپلیکیشن دانلود شده آپدیت کنید',
+            connectAndUseDesc: 'در برنامه هیدیفای و هپ روی دکمه CONNECT و در سینگ باکس روی ENABLE کلیک کنید. پیشنهاد می شود روزانه لینک اشتراک خود را از داخل اپلیکیشن دانلود شده آپدیت کنید',
             qrCode: 'کد QR',
             download: 'دانلود',
             start: 'شروع',
@@ -642,7 +642,7 @@
             hiddifySettings: 'Hiddify Settings',
             singboxSettings: 'Sing-box Settings',
             connectAndUse: 'Connect and Use',
-            connectAndUseDesc: 'Click CONNECT in Hiddify app or ENABLE in Sing-box. It is recommended to update your subscription link daily from within the app.',
+            connectAndUseDesc: 'Click CONNECT in Hiddify and Happ or ENABLE in Sing-box. It is recommended to update your subscription link daily from within the app.',
             qrCode: 'QR Code',
             download: 'Download',
             start: 'Start',
@@ -777,12 +777,29 @@
           return `<span class="traffic-value">${this.formatBytes(usedTraffic)} / ${this.formatBytes(dataLimit)}</span>`;
         },
 
+
         importHiddify() {
           window.location.href = `hiddify://import/${'{{ user.subscription_url }}'}`;
         },
-        
+
         importSingbox() {
           window.location.href = `sing-box://import-remote-profile?url=${'{{ user.subscription_url }}'}#{{ user.username }}`;
+        },
+
+        importApp(type) {
+          const url = this.userSubLink || '';
+          const username = '{{ user.username }}';
+          switch(type) {
+            case 'hiddify':
+              window.location.href = `hiddify://import/${url}`;
+              break;
+            case 'singbox':
+              window.location.href = `sing-box://import-remote-profile?url=${url}#${username}`;
+              break;
+            case 'happ':
+              window.location.href = `happ://add/${'{{ user.subscription_url }}'}`;
+              break;
+          }
         },
 
         copyLink(link, button) {
@@ -939,7 +956,6 @@
             links: [{% for link in user.links %}'{{ link }}'{% if not loop.last %}, {% endif %}{% endfor %}],
             getLinkName(link) {
               if (link === this.subscriptionUrl) return translations[currentLang].subscriptionLink;
-              
               const protocols = {
                 'vmess://': link => {
                   try { 
@@ -977,13 +993,11 @@
                   }
                 }
               };
-              
               for (const prefix in protocols) {
                 if (link.startsWith(prefix)) {
                   return protocols[prefix](link);
                 }
               }
-              
               try {
                 const url = new URL(link);
                 const params = new URLSearchParams(url.hash.slice(1));
@@ -991,10 +1005,29 @@
               } catch {
                 return link.includes('#') ? decodeURIComponent(link.split('#')[1]) || translations[currentLang].configLink : translations[currentLang].configLink;
               }
+            },
+            copyAllConfigs(button) {
+              const allLinks = [this.subscriptionUrl, ...this.links].join('\n');
+              navigator.clipboard.writeText(allLinks).then(() => {
+                const originalHTML = button.innerHTML;
+                button.innerHTML = `<svg class='bi' width='16' height='16'><use href='#check-square'></use></svg> <span>کپی شد</span>`;
+                button.classList.add('copied');
+                setTimeout(() => {
+                  button.innerHTML = originalHTML;
+                  button.classList.remove('copied');
+                }, 2000);
+              });
             }
           }">
             <p class="my-text-content mb-3" x-text="translations[currentLang].configLinksDesc"></p>
             <div class="mb-3">
+              <!-- باکس جدید برای تمام کانفیگ‌ها -->
+              <div class="config-link">
+                <div class="config-link-name">تمام کانفیگ‌ها</div>
+                <div class="config-link-buttons">
+                  <button class="config-link-copy-btn" style="width:100%" @click="copyAllConfigs($el)" x-html="`<svg class='bi' width='16' height='16'><use href='#copy'></use></svg> <span>کپی</span>`"></button>
+                </div>
+              </div>
               <div class="config-link">
                 <div class="config-link-name" x-text="translations[currentLang].subscriptionLink"></div>
                 <div class="config-link-buttons">
@@ -1004,7 +1037,7 @@
                   <button class="config-link-copy-btn" 
                   @click="copyLink(subscriptionUrl, $el)" 
                   x-html="`<svg class='bi' width='14' height='14'><use href='#copy'></use></svg> <span>${translations[currentLang].copy}</span>`">
-          </button>
+                  </button>
                 </div>
               </div>
               
@@ -1038,6 +1071,7 @@
               <p class="my-text-content" x-text="translations[currentLang].downloadAppsDesc"></p>
               
               <div class="download-buttons">
+                <!-- Windows Apps First -->
                 <div class="config-link">
                   <div class="config-link-name">
                     <svg class="bi" width="16" height="16"><use href="#microsoft"></use></svg>
@@ -1056,6 +1090,24 @@
                   </div>
                 </div>
 
+                <!-- Android Apps Second -->
+                <div class="config-link">
+                  <div class="config-link-name">
+                    <svg class="bi" width="16" height="16"><use href="#android"></use></svg>
+                    <span x-text="currentLang === 'fa' ? 'هپ اندروید' : 'Happ Android'"></span>
+                  </div>
+                  <div class="config-link-buttons">
+                    <a class="download-button" 
+                       href="https://github.com/Happ-proxy/happ-android/releases/latest/download/Happ.apk" 
+                       role="button" 
+                       rel="noopener noreferrer" 
+                       target="_blank" 
+                       @click="handleButtonFeedback($el, $el.innerHTML, `<svg class='bi' width='16' height='16'><use href='#cloud-check'></use></svg> <span>${translations[currentLang].start}</span>`); setTimeout(() => window.open('https://github.com/Happ-proxy/happ-android/releases/latest/download/Happ.apk', '_blank'), 300);">
+                      <svg class="bi" width="16" height="16"><use href="#cloud-arrow-down"></use></svg>
+                      <span x-text="translations[currentLang].download || 'دانلود'"></span>
+                    </a>
+                  </div>
+                </div>
                 <div class="config-link">
                   <div class="config-link-name">
                     <svg class="bi" width="16" height="16"><use href="#android"></use></svg>
@@ -1076,34 +1128,35 @@
 
                 <div class="config-link">
                   <div class="config-link-name">
-                    <svg class="bi" width="16" height="16"><use href="#apple"></use></svg>
-                    <span x-text="translations[currentLang].hiddifyApple"></span>
+                    <svg class="bi" width="16" height="16"><use href="#android"></use></svg>
+                    <span x-text="translations[currentLang].singboxAndroid"></span>
                   </div>
                   <div class="config-link-buttons">
                     <a class="download-button" 
-                       href="https://apps.apple.com/us/app/hiddify-proxy-vpn/id6596777532" 
+                       href="https://github.com/SagerNet/sing-box/releases/download/v1.11.15/SFA-1.11.15-universal.apk" 
                        role="button" 
                        rel="noopener noreferrer" 
                        target="_blank" 
-                       @click="handleButtonFeedback($el, $el.innerHTML, `<svg class='bi' width='16' height='16'><use href='#cloud-check'></use></svg> <span>${translations[currentLang].start}</span>`); setTimeout(() => window.open('https://apps.apple.com/us/app/hiddify-proxy-vpn/id6596777532', '_blank'), 300);">
+                       @click="handleButtonFeedback($el, $el.innerHTML, `<svg class='bi' width='16' height='16'><use href='#cloud-check'></use></svg> <span>${translations[currentLang].start}</span>`); setTimeout(() => window.open('https://github.com/SagerNet/sing-box/releases/download/v1.11.15/SFA-1.11.15-universal.apk', '_blank'), 300);">
                       <svg class="bi" width="16" height="16"><use href="#cloud-arrow-down"></use></svg>
                       <span x-text="translations[currentLang].download || 'دانلود'"></span>
                     </a>
                   </div>
                 </div>
 
+                <!-- iPhone Apps Last -->
                 <div class="config-link">
                   <div class="config-link-name">
-                    <svg class="bi" width="16" height="16"><use href="#android"></use></svg>
-                    <span x-text="translations[currentLang].singboxAndroid"></span>
+                    <svg class="bi" width="16" height="16"><use href="#apple"></use></svg>
+                    <span x-text="currentLang === 'fa' ? 'هپ اپل' : 'Happ Apple'"></span>
                   </div>
                   <div class="config-link-buttons">
                     <a class="download-button" 
-                       href="https://github.com/SagerNet/sing-box/releases/download/v1.11.6/SFA-1.11.6-universal.apk" 
+                       href="https://apps.apple.com/us/app/happ-proxy-utility/id6504287215" 
                        role="button" 
                        rel="noopener noreferrer" 
                        target="_blank" 
-                       @click="handleButtonFeedback($el, $el.innerHTML, `<svg class='bi' width='16' height='16'><use href='#cloud-check'></use></svg> <span>${translations[currentLang].start}</span>`); setTimeout(() => window.open('https://github.com/SagerNet/sing-box/releases/download/v1.11.6/SFA-1.11.6-universal.apk', '_blank'), 300);">
+                       @click="handleButtonFeedback($el, $el.innerHTML, `<svg class='bi' width='16' height='16'><use href='#cloud-check'></use></svg> <span>${translations[currentLang].start}</span>`); setTimeout(() => window.open('https://apps.apple.com/us/app/happ-proxy-utility/id6504287215', '_blank'), 300);">
                       <svg class="bi" width="16" height="16"><use href="#cloud-arrow-down"></use></svg>
                       <span x-text="translations[currentLang].download || 'دانلود'"></span>
                     </a>
@@ -1137,7 +1190,6 @@
                 <span class="my-step-counter mb-3"></span>
                 <h5 class="my-text-heading fw-semibold" x-text="translations[currentLang].addSubscription"></h5>
                 <p class="my-text-content" x-text="translations[currentLang].addSubscriptionDesc"></p>
-                
                 <div class="download-buttons">
                   <div class="config-link">
                     <div class="config-link-name">
@@ -1163,6 +1215,21 @@
                       <a class="settings-button" 
                          href="#" 
                          @click.prevent="importSingbox(); handleButtonFeedback($el, $el.innerHTML, `<svg class='bi' width='16' height='16'><use href='#cloud-check'></use></svg> <span>${translations[currentLang].enter}</span>`)">
+                        <svg class="bi" width="16" height="16"><use href="#cloud-plus"></use></svg>
+                        <span x-text="translations[currentLang].settings || 'تنظیمات'"></span>
+                      </a>
+                    </div>
+                  </div>
+
+                  <div class="config-link">
+                    <div class="config-link-name">
+                      <svg class="bi" width="16" height="16"><use href="#gear-fill"></use></svg>
+                      <span x-text="currentLang === 'fa' ? 'تنظیمات هپ' : 'Happ Settings'"></span>
+                    </div>
+                    <div class="config-link-buttons">
+                      <a class="settings-button"
+                         href="#"
+                         @click.prevent="importApp('happ'); handleButtonFeedback($el, $el.innerHTML, `<svg class='bi' width='16' height='16'><use href='#cloud-check'></use></svg> <span>${translations[currentLang].enter}</span>`)">
                         <svg class="bi" width="16" height="16"><use href="#cloud-plus"></use></svg>
                         <span x-text="translations[currentLang].settings || 'تنظیمات'"></span>
                       </a>
